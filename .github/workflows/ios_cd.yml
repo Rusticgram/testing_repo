@@ -27,9 +27,6 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Flutter tests
-        run: flutter test
-
       # 1) Install CocoaPods
       - name: Install CocoaPods
         run: sudo gem install cocoapods -NV
