@@ -22,7 +22,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: stable
+          channel: stable  # use the stable channel without guessing a specific version
 
       - name: Flutter pub get
         run: flutter pub get
