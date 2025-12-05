@@ -26,6 +26,19 @@
 
 default_platform(:ios)
 
+def app_store_key_content
+  raw = ENV["APP_STORE_CONNECT_API_KEY_CONTENT"]
+  UI.user_error!("APP_STORE_CONNECT_API_KEY_CONTENT is missing") unless raw
+
+  # If the secret was stored as base64 (common for CI), decode it; otherwise use as-is.
+  return raw if raw.include?("BEGIN PRIVATE KEY")
+
+  require "base64"
+  Base64.strict_decode64(raw)
+rescue ArgumentError
+  UI.user_error!("APP_STORE_CONNECT_API_KEY_CONTENT must be PEM text or base64-encoded PEM")
+end
+
 platform :ios do
   desc "Push a new beta build to TestFlight (for CI and local)"
   lane :beta do
@@ -33,7 +46,7 @@ platform :ios do
     app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
-      key_content: ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
+      key_content: app_store_key_content,
       is_key_content_base64: false,
       in_house: false
     )
