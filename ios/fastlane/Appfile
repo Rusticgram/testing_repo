@@ -1,0 +1,8 @@
+app_identifier("com.rusticgram.app") # The bundle identifier of your app
+apple_id("senthuran.kumaran@datadrone.biz") # Your Apple Developer Portal username
+
+itc_team_id("127090644") # App Store Connect Team ID
+team_id("TM888YGVH3") # Developer Portal Team ID
+
+# For more information about the Appfile, see:
+#     https://docs.fastlane.tools/advanced/#appfile
