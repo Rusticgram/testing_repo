@@ -28,10 +28,48 @@
 
 default_platform(:ios)
 
+require "base64"
+require "fileutils"
+
 platform :ios do
   desc "Push a new beta build to TestFlight (for CI and local)"
   lane :beta do
-    # Authenticate using App Store Connect API key (CI-friendly, no UI)
+    #
+    # 1) Decode & install provisioning profile (stored as base64 in IOS_DEV_PROFILE)
+    #
+    profile_base64 = ENV["IOS_DEV_PROFILE"]
+    UI.user_error!("IOS_DEV_PROFILE is missing") if profile_base64.to_s.empty?
+
+    profiles_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
+    FileUtils.mkdir_p(profiles_dir)
+
+    profile_path = File.join(profiles_dir, "rusticgram_dist.mobileprovision")
+    File.open(profile_path, "wb") do |f|
+      f.write(Base64.decode64(profile_base64))
+    end
+
+    #
+    # 2) Decode & import distribution certificate (.p12) from IOS_DIST_CERT
+    #
+    cert_base64   = ENV["IOS_DIST_CERT"]
+    cert_password = ENV["IOS_DIST_CERT_PASSWORD"]
+
+    UI.user_error!("IOS_DIST_CERT is missing") if cert_base64.to_s.empty?
+    UI.user_error!("IOS_DIST_CERT_PASSWORD is missing") if cert_password.to_s.empty?
+
+    cert_path = File.expand_path("dist_cert.p12")
+    File.open(cert_path, "wb") do |f|
+      f.write(Base64.decode64(cert_base64))
+    end
+
+    import_certificate(
+      certificate_path: cert_path,
+      certificate_password: cert_password
+    )
+
+    #
+    # 3) Authenticate using App Store Connect API key (CI-friendly, no UI)
+    #
     app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
@@ -40,12 +78,16 @@ platform :ios do
       in_house: false
     )
 
-    # Bump build number
+    #
+    # 4) Bump build number
+    #
     increment_build_number(
       xcodeproj: "Runner.xcodeproj"
     )
 
-    # Build the app
+    #
+    # 5) Build the app
+    #
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
@@ -53,7 +95,9 @@ platform :ios do
       # team_id: ENV["APPLE_TEAM_ID"] # <- optional, only if you need it
     )
 
-    # Upload to TestFlight
+    #
+    # 6) Upload to TestFlight
+    #
     upload_to_testflight(
       app_identifier: ENV["APP_IDENTIFIER"],
       skip_waiting_for_build_processing: true

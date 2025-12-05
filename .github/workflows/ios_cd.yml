@@ -28,6 +28,15 @@ jobs:
           cache: true  # reuse downloaded SDK across workflow runs
           cache-key: flutter-sdk-${{ runner.os }}-${{ env.FLUTTER_VERSION }}  # only re-install when version changes
 
+      # Cache Flutter pub packages to avoid re-downloading on each run
+      - name: Cache pub cache
+        uses: actions/cache@v4
+        with:
+          path: /Users/runner/.pub-cache
+          key: pub-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-${{ runner.os }}-${{ env.FLUTTER_VERSION }}-
+
       - name: Flutter pub get
         run: flutter pub get
 
