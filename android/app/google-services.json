@@ -1,0 +1,138 @@
+{
+  "project_info": {
+    "project_number": "540433544607",
+    "project_id": "rusticgram-e7673",
+    "storage_bucket": "rusticgram-e7673.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:540433544607:android:ee839f95af5ca974f179aa",
+        "android_client_info": {
+          "package_name": "com.rusticgram.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "540433544607-60s44g34o2t1cn2okgfu82vbgha1lh3c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "37121d852b773f7a3e7daa105b3cc978026f2d55"
+          }
+        },
+        {
+          "client_id": "540433544607-8i761me91bn25g7se0ijj72ck97i3upb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "3ee86fa5a8b498e98ddc5936bf503c56eeeaf080"
+          }
+        },
+        {
+          "client_id": "540433544607-cjet0au15vg2t83j27tsc3rn63qqhqvi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "3275015fb6c0686b747658b278778220394c26e3"
+          }
+        },
+        {
+          "client_id": "540433544607-eq40qj9p4edtkp8dhbicsmij5g8oujq6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "781bd9fd072482bb161799b9d07fdc172d3f5986"
+          }
+        },
+        {
+          "client_id": "540433544607-gpaj26s5p6qoicfvhc410dmu3oo8hp11.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "7a0351c15e4cff6d903441b791a7f0ef17da64e3"
+          }
+        },
+        {
+          "client_id": "540433544607-ht4lo9le2cotsm4jj99ffe2e8d7nnjga.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "4f4bdc4160728310f805bc3bdb34524a1f1e33ab"
+          }
+        },
+        {
+          "client_id": "540433544607-l5horlc2udu91bchcovoob66i5f84vl4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rusticgram.app",
+            "certificate_hash": "9dd1fb9fe2031ea06f494e0acc33cf8d5df2512d"
+          }
+        },
+        {
+          "client_id": "540433544607-c9chjmk57qpbbv8mf06kcog1oefaqspq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKgesyuIZNEL0Ay0y8TzQd_EWm7A2NtCQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "540433544607-c9chjmk57qpbbv8mf06kcog1oefaqspq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "540433544607-01855q4kea64servmkvmbees2l4ai56n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.rusticgram.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:540433544607:android:7ea301bcce849645f179aa",
+        "android_client_info": {
+          "package_name": "com.rusticgram.dealer"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "540433544607-c9chjmk57qpbbv8mf06kcog1oefaqspq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKgesyuIZNEL0Ay0y8TzQd_EWm7A2NtCQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "540433544607-c9chjmk57qpbbv8mf06kcog1oefaqspq.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "540433544607-01855q4kea64servmkvmbees2l4ai56n.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.rusticgram.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
