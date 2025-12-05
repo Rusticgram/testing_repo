@@ -14,6 +14,8 @@ jobs:
       APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
       APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      FLUTTER_VERSION: '3.35.4'  # set to your local Flutter version
+      COCOAPODS_VERSION: '1.16.2'  # set to your local CocoaPods version
 
     steps:
       - name: Checkout repo
@@ -22,14 +24,41 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable  # use the stable channel without guessing a specific version
+          flutter-version: ${{ env.FLUTTER_VERSION }}  # match local version
+          cache: true  # reuse downloaded SDK across workflow runs
+          cache-key: flutter-sdk-${{ runner.os }}-${{ env.FLUTTER_VERSION }}  # only re-install when version changes
 
       - name: Flutter pub get
         run: flutter pub get
 
-      # 1) Install CocoaPods
+      # Cache Ruby gems for fastlane/bundler
+      - name: Cache Ruby gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('ios/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+
+      - name: Bundle install
+        working-directory: ios
+        run: |
+          bundle config set --local path ../vendor/bundle
+          bundle install --jobs 4 --retry 3
+
+      # Cache CocoaPods gem + pods artifacts; reinstall only when version changes
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gem
+            ~/Library/Caches/CocoaPods
+          key: ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}
+          restore-keys: ${{ runner.os }}-cocoapods-
+
+      # 1) Install CocoaPods (version pinned)
       - name: Install CocoaPods
-        run: sudo gem install cocoapods -NV
+        run: sudo gem install cocoapods -v $COCOAPODS_VERSION -NV
 
       # 2) Run pod install in ios/
       - name: Pod install
@@ -43,4 +72,4 @@ jobs:
       # 4) Build + upload to TestFlight (fastlane beta)
       - name: Build & Upload to TestFlight
         working-directory: ios
-        run: fastlane beta
+        run: bundle exec fastlane beta
