@@ -1,3 +1,4 @@
 source "https://rubygems.org"
 
-gem "fastlane"
+# Pin fastlane to a modern version so CI has the actions we call
+gem "fastlane", ">= 2.229.1"
