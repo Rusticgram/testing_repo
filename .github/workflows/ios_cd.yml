@@ -14,6 +14,9 @@ jobs:
       APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
       APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      IOS_DEV_PROFILE: ${{ secrets.IOS_DEV_PROFILE }}  # base64 of .mobileprovision
+      IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}  # base64 of .p12
+      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
       FLUTTER_VERSION: '3.35.4'  # set to your local Flutter version
       COCOAPODS_VERSION: '1.16.2'  # set to your local CocoaPods version
 
