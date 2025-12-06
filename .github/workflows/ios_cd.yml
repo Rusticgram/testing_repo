@@ -19,6 +19,7 @@ jobs:
       IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
       FLUTTER_VERSION: '3.35.4'  # set to your local Flutter version
       COCOAPODS_VERSION: '1.16.2'  # set to your local CocoaPods version
+      BUNDLER_VERSION: '2.7.2'
 
     steps:
       - name: Checkout repo
@@ -48,15 +49,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('ios/Gemfile', 'ios/Gemfile.lock') }}
+          key: ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-${{ hashFiles('ios/Gemfile', 'ios/Gemfile.lock') }}
           restore-keys: |
+            ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-
             ${{ runner.os }}-gems-
 
       - name: Bundle install
         working-directory: ios
         run: |
+          gem install bundler -v $BUNDLER_VERSION
           bundle config set --local path ../vendor/bundle
-          bundle install --jobs 4 --retry 3
+          bundle _${BUNDLER_VERSION}_ install --jobs 4 --retry 3
 
       # Cache CocoaPods gem + pods artifacts; reinstall only when version changes
       - name: Cache CocoaPods
