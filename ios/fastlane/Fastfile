@@ -62,9 +62,23 @@ platform :ios do
       f.write(Base64.decode64(cert_base64))
     end
 
+    keychain_name = "app-signing.keychain-db"
+    keychain_password = ENV["IOS_DIST_CERT_PASSWORD"] || "temp_keychain_password"
+
+    create_keychain(
+      name: keychain_name,
+      password: keychain_password,
+      default_keychain: true,
+      unlock: true,
+      timeout: 3600,
+      lock_when_sleeps: false
+    )
+
     import_certificate(
       certificate_path: cert_path,
-      certificate_password: cert_password
+      certificate_password: cert_password,
+      keychain_name: keychain_name,
+      keychain_password: keychain_password
     )
 
     #
