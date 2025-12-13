@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-and-test:
-    name: Build Release APKs & AAB
+    name: Build & Test (Android)
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -30,43 +30,29 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Restore pub cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ runner.tool-cache }}/flutter/pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('**/pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-flutter-pub-
-
       - name: Get dependencies
         run: flutter pub get
-
-      - name: Check formatting (non-blocking)
-        run: dart format --set-exit-if-changed . || echo "Formatting skipped"
-        continue-on-error: true
 
       - name: Analyze code
         run: flutter analyze --no-fatal-infos
 
       - name: Run tests (non-blocking)
-        run: flutter test --coverage
-        continue-on-error: true
+        run: flutter test || true
 
+      # CI APKs (unsigned)
       - name: Build Release APKs
         run: flutter build apk --release --split-per-abi
 
-      - name: Disable release signing for CI
-        run: |
-          sed -i 's/signingConfig signingConfigs.release/# signingConfig signingConfigs.release/g' android/app/build.gradle
-
-      - name: Build App Bundle
+      # Play Store accepts Google-managed signing
+      - name: Build App Bundle (no local keystore)
         if: github.event_name == 'release'
         run: flutter build appbundle --release
 
-      - name: Upload Release APKs
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
           name: release-apks
-          path: build/app/outputs/flutter-apk/app-*-release.apk
+          path: build/app/outputs/flutter-apk/*.apk
 
       - name: Upload AAB
         if: github.event_name == 'release'
@@ -75,38 +61,18 @@ jobs:
           name: app-release-aab
           path: build/app/outputs/bundle/release/app-release.aab
 
-  github-release-assets:
-    needs: build-and-test
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: release-apks
-          path: apks/
-      - name: Download AAB
-        uses: actions/download-artifact@v4
-        with:
-          name: app-release-aab
-      - name: Upload to GitHub Release
-        run: gh release upload ${{ github.event.release.tag_name }} apks/* app-release-aab/* --clobber
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   deploy-play-store:
     needs: build-and-test
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
+
     steps:
       - name: Download AAB
         uses: actions/download-artifact@v4
         with:
           name: app-release-aab
 
-      - name: Deploy to Google Play Internal Testing
+      - name: Deploy to Google Play (Internal)
         uses: r0adkll/upload-google-play@v1.1.3
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
@@ -115,55 +81,3 @@ jobs:
           track: internal
           status: completed
           inAppUpdatePriority: 5
-          # whatsNewDirectory: whatsnew/   # Uncomment when you add release notes folder
-
-  # iOS TestFlight with manual signing (no Match repo needed)
-  # ios-testflight:
-  #   needs: build-and-test
-  #   if: github.event_name == 'release' && github.event.action == 'published'
-  #   runs-on: macos-14
-  #   timeout-minutes: 60
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-
-  #     - name: Setup Flutter
-  #       uses: subosito/flutter-action@v2
-  #       with:
-  #         channel: stable
-  #         cache: true
-
-  #     - name: Get dependencies
-  #       run: flutter pub get
-
-  #     # Install your existing certificate
-  #     - name: Install iOS Distribution Certificate
-  #       run: |
-  #         echo "${{ secrets.IOS_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
-  #         security create-keychain -p "" build.keychain
-  #         security default-keychain -s build.keychain
-  #         security unlock-keychain -p "" build.keychain
-  #         security import certificate.p12 -k build.keychain -P "${{ secrets.IOS_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
-
-  #     # Install your existing provisioning profile
-  #     - name: Install Provisioning Profile
-  #       run: |
-  #         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-  #         echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Rusticgram.mobileprovision
-
-  #     # Build IPA
-  #     - name: Build IPA
-  #       run: flutter build ipa --release
-
-  #     # Install Fastlane & upload to TestFlight
-  #     - name: Install Fastlane
-  #       run: gem install fastlane
-
-  #     - name: Upload to TestFlight
-  #       env:
-  #         APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
-  #         APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-  #         APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-  #       run: |
-  #         cd ios
-  #         fastlane pilot upload --ipa ../build/ios/ipa/*.ipa --skip_waiting_for_build_processing true
