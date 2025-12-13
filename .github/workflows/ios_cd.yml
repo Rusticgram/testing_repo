@@ -114,52 +114,52 @@ jobs:
           # whatsNewDirectory: whatsnew/   # Uncomment when you add release notes folder
 
   # iOS TestFlight with manual signing (no Match repo needed)
-  ios-testflight:
-    needs: build-and-test
-    if: github.event_name == 'release' && github.event.action == 'published'
-    runs-on: macos-14
-    timeout-minutes: 60
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # ios-testflight:
+  #   needs: build-and-test
+  #   if: github.event_name == 'release' && github.event.action == 'published'
+  #   runs-on: macos-14
+  #   timeout-minutes: 60
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
+  #     - name: Setup Flutter
+  #       uses: subosito/flutter-action@v2
+  #       with:
+  #         channel: stable
+  #         cache: true
 
-      - name: Get dependencies
-        run: flutter pub get
+  #     - name: Get dependencies
+  #       run: flutter pub get
 
-      # Install your existing certificate
-      - name: Install iOS Distribution Certificate
-        run: |
-          echo "${{ secrets.IOS_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
-          security import certificate.p12 -k build.keychain -P "${{ secrets.IOS_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
+  #     # Install your existing certificate
+  #     - name: Install iOS Distribution Certificate
+  #       run: |
+  #         echo "${{ secrets.IOS_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
+  #         security create-keychain -p "" build.keychain
+  #         security default-keychain -s build.keychain
+  #         security unlock-keychain -p "" build.keychain
+  #         security import certificate.p12 -k build.keychain -P "${{ secrets.IOS_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
 
-      # Install your existing provisioning profile
-      - name: Install Provisioning Profile
-        run: |
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Rusticgram.mobileprovision
+  #     # Install your existing provisioning profile
+  #     - name: Install Provisioning Profile
+  #       run: |
+  #         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+  #         echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/Rusticgram.mobileprovision
 
-      # Build IPA
-      - name: Build IPA
-        run: flutter build ipa --release
+  #     # Build IPA
+  #     - name: Build IPA
+  #       run: flutter build ipa --release
 
-      # Install Fastlane & upload to TestFlight
-      - name: Install Fastlane
-        run: gem install fastlane
+  #     # Install Fastlane & upload to TestFlight
+  #     - name: Install Fastlane
+  #       run: gem install fastlane
 
-      - name: Upload to TestFlight
-        env:
-          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
-          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
-          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
-        run: |
-          cd ios
-          fastlane pilot upload --ipa ../build/ios/ipa/*.ipa --skip_waiting_for_build_processing true
+  #     - name: Upload to TestFlight
+  #       env:
+  #         APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+  #         APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+  #         APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+  #       run: |
+  #         cd ios
+  #         fastlane pilot upload --ipa ../build/ios/ipa/*.ipa --skip_waiting_for_build_processing true
