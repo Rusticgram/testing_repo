@@ -28,3 +28,10 @@ doc/api/
 .flutter-plugins
 .flutter-plugins-dependencies
 .DS_Store
+
+# Android signing (DO NOT COMMIT)
+android/key.properties
+android/*.jks
+android/*.keystore
+android/app/*.jks
+android/app/*.keystore
