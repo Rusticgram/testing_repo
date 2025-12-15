@@ -27,8 +27,9 @@ val hasKeystore =
     keystorePropertiesFile.exists() &&
     keystoreProperties["keyAlias"] != null &&
     keystoreProperties["keyPassword"] != null &&
+    keystoreProperties["storePassword"] != null &&
     keystoreProperties["storeFile"] != null &&
-    keystoreProperties["storePassword"] != null
+    file(keystoreProperties["storeFile"] as String).exists()
 
 android {
     namespace = "com.rusticgram.app"
