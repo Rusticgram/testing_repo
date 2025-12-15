@@ -135,40 +135,72 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # ---------------------
+    # Checkout
+    # ---------------------
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
+    # ---------------------
+    # Flutter setup
+    # ---------------------
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+        cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
+    - name: Get Flutter dependencies
+      run: flutter pub get
 
-      # --------------------------------
-      # Install Apple signing assets
-      # --------------------------------
-      - name: Install iOS certificates & profiles
-        run: |
-          security create-keychain -p "" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "" build.keychain
+    # -----------------------------
+    # Install Apple signing assets
+    # -----------------------------
+    - name: Install iOS certificates & provisioning profile
+      env:
+        IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
+        IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        IOS_MOBILEPROVISION: ${{ secrets.IOS_DEV_PROFILE }}
+      run: |
+        set -e
 
-          echo "${{ secrets.IOS_P12_BASE64 }}" | base64 --decode > ios_dist.p12
-          security import ios_dist.p12 \
-            -k build.keychain \
-            -P "${{ secrets.IOS_P12_PASSWORD }}" \
-            -T /usr/bin/codesign
+        security create-keychain -p "" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "" build.keychain
+        security set-keychain-settings -t 3600 -u build.keychain
 
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "${{ secrets.IOS_MOBILEPROVISION_BASE64 }}" | base64 --decode > profile.mobileprovision
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+        echo "$IOS_DIST_CERT" | base64 --decode > ios_dist.p12
+        security import ios_dist.p12 \
+          -k build.keychain \
+          -P "$IOS_DIST_CERT_PASSWORD" \
+          -T /usr/bin/codesign
 
-      # -------------------------
-      # Build iOS IPA
-      # -------------------------
-      - name: Build iOS IPA
-        run: |
-          flutter build ipa --release \
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        echo "$IOS_MOBILEPROVISION" | base64 --decode > profile.mobileprovision
+        cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+        security find-identity -v -p codesigning
+
+    # ---------------------
+    # Build IPA
+    # ---------------------
+    - name: Build iOS IPA
+      run: flutter build ipa --release
+
+    # ---------------------
+    # Upload to TestFlight
+    # ---------------------
+    - name: Upload to TestFlight
+      env:
+        APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      run: |
+        mkdir -p ~/.appstoreconnect/private_keys
+        echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+
+        xcrun altool --upload-app \
+          -f build/ios/ipa/*.ipa \
+          -t ios \
+          --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+          --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
