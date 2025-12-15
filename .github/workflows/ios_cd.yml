@@ -3,6 +3,8 @@ name: Flutter CI/CD
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'          # triggers on v1.0.0, v6.0.4, etc.
   pull_request:
     branches: [ main ]
   release:
