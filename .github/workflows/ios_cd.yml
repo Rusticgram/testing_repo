@@ -15,6 +15,7 @@ jobs:
     name: Build & Test (Android)
     runs-on: ubuntu-latest
     timeout-minutes: 40
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,22 +41,41 @@ jobs:
       - name: Run tests (non-blocking)
         run: flutter test || true
 
-      # CI APKs (unsigned)
+      # --------------------------------------------------
+      # Restore Upload Keystore (ONLY for release builds)
+      # --------------------------------------------------
+      - name: Restore upload keystore
+        if: github.event_name == 'release'
+        run: |
+          echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
+
+          cat <<EOF > android/key.properties
+          storeFile=upload-keystore.jks
+          storePassword=${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.UPLOAD_KEY_ALIAS }}
+          keyPassword=${{ secrets.UPLOAD_KEY_PASSWORD }}
+          EOF
+
+      # -----------------------------
+      # Build APKs (CI artifacts)
+      # -----------------------------
       - name: Build Release APKs
         run: flutter build apk --release --split-per-abi
 
-      # Play Store accepts Google-managed signing
-      - name: Build App Bundle (no local keystore)
+      # -----------------------------------------
+      # Build SIGNED App Bundle for Play Store
+      # -----------------------------------------
+      - name: Build App Bundle (signed with upload key)
         if: github.event_name == 'release'
         run: flutter build appbundle --release
 
-      - name: Upload APKs
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-apks
           path: build/app/outputs/flutter-apk/*.apk
 
-      - name: Upload AAB
+      - name: Upload AAB artifact
         if: github.event_name == 'release'
         uses: actions/upload-artifact@v4
         with:
@@ -63,9 +83,11 @@ jobs:
           path: build/app/outputs/bundle/release/app-release.aab
 
   deploy-play-store:
+    name: Deploy to Google Play (Internal)
     needs: build-and-test
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -78,22 +100,17 @@ jobs:
 
       - name: Verify AAB exists
         run: |
-          echo "Contents of current directory:"
-          ls -la
-          echo "Checking for AAB file:"
-          if [ -f "app-release.aab" ]; then
-            echo "✓ AAB file found"
-            ls -lh app-release.aab
-          else
-            echo "✗ AAB file not found"
+          ls -lh
+          if [ ! -f "app-release.aab" ]; then
+            echo "❌ app-release.aab not found"
             exit 1
           fi
+          echo "✅ app-release.aab found"
 
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: true
 
       - name: Install Fastlane
         run: gem install fastlane
