@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     tags:
-      - 'v*'          # triggers on v1.0.0, v6.0.4, etc.
+      - 'v*'
   pull_request:
     branches: [ main ]
   release:
@@ -15,7 +15,6 @@ jobs:
     name: Build & Test (Android)
     runs-on: ubuntu-latest
     timeout-minutes: 40
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -67,12 +66,28 @@ jobs:
     needs: build-and-test
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
-
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download AAB
         uses: actions/download-artifact@v4
         with:
           name: app-release-aab
+          path: .
+
+      - name: Verify AAB exists
+        run: |
+          echo "Contents of current directory:"
+          ls -la
+          echo "Checking for AAB file:"
+          if [ -f "app-release.aab" ]; then
+            echo "✓ AAB file found"
+            ls -lh app-release.aab
+          else
+            echo "✗ AAB file not found"
+            exit 1
+          fi
 
       - name: Deploy to Google Play (Internal)
         uses: r0adkll/upload-google-play@v1.1.3
