@@ -164,28 +164,104 @@ jobs:
         run: |
           set -e
 
+          # Verify all secrets are present
+          echo "🔍 Checking secrets..."
+          if [ -z "$IOS_DIST_CERT" ]; then
+            echo "❌ IOS_DIST_CERT secret is empty"
+            exit 1
+          fi
+          echo "✅ IOS_DIST_CERT is set (length: ${#IOS_DIST_CERT})"
+
+          if [ -z "$IOS_DIST_CERT_PASSWORD" ]; then
+            echo "❌ IOS_DIST_CERT_PASSWORD secret is empty"
+            exit 1
+          fi
+          echo "✅ IOS_DIST_CERT_PASSWORD is set"
+
+          if [ -z "$IOS_MOBILEPROVISION" ]; then
+            echo "❌ IOS_MOBILEPROVISION secret is empty"
+            exit 1
+          fi
+          echo "✅ IOS_MOBILEPROVISION is set (length: ${#IOS_MOBILEPROVISION})"
+
+          # Create and configure keychain
+          echo "🔐 Creating build keychain..."
           security create-keychain -p "" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
 
+          # Decode certificate
+          echo "📦 Decoding certificate..."
           echo "$IOS_DIST_CERT" | base64 --decode > ios_dist.p12
+
+          # Verify certificate file
+          FILE_SIZE=$(stat -f%z ios_dist.p12 2>/dev/null || stat -c%s ios_dist.p12)
+          echo "📄 Certificate file size: $FILE_SIZE bytes"
+          
+          if [ "$FILE_SIZE" -lt 100 ]; then
+            echo "❌ Certificate file is too small ($FILE_SIZE bytes), likely corrupted or invalid"
+            echo "First 100 chars of base64: ${IOS_DIST_CERT:0:100}"
+            exit 1
+          fi
+
+          # Try to verify the certificate with openssl first
+          echo "🔍 Verifying certificate format..."
+          if ! openssl pkcs12 -info -in ios_dist.p12 -passin pass:"$IOS_DIST_CERT_PASSWORD" -noout 2>&1; then
+            echo "❌ Certificate verification failed - check password or certificate format"
+            exit 1
+          fi
+          echo "✅ Certificate format is valid"
+
+          # Import certificate to keychain
+          echo "📥 Importing certificate to keychain..."
           security import ios_dist.p12 \
             -k build.keychain \
             -P "$IOS_DIST_CERT_PASSWORD" \
-            -T /usr/bin/codesign
+            -A
 
+          # Set key partition list (allows codesign to access without prompting)
+          echo "🔓 Setting key partition list..."
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" build.keychain
+
+          # Install provisioning profile
+          echo "📱 Installing provisioning profile..."
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$IOS_MOBILEPROVISION" | base64 --decode > profile.mobileprovision
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
 
+          # Verify provisioning profile
+          PROFILE_SIZE=$(stat -f%z profile.mobileprovision 2>/dev/null || stat -c%s profile.mobileprovision)
+          echo "📄 Provisioning profile size: $PROFILE_SIZE bytes"
+
+          if [ "$PROFILE_SIZE" -lt 100 ]; then
+            echo "❌ Provisioning profile is too small, likely invalid"
+            exit 1
+          fi
+
+          # Extract UUID and install with proper naming
+          PROFILE_UUID=$(grep -a -A 1 'UUID' profile.mobileprovision | grep string | sed -e 's/<string>//' -e 's/<\/string>//' -e 's/ //g' | tr -d '\n')
+          
+          if [ -z "$PROFILE_UUID" ]; then
+            echo "❌ Could not extract UUID from provisioning profile"
+            security dump-keychain -d build.keychain
+            exit 1
+          fi
+
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+          echo "✅ Installed provisioning profile: $PROFILE_UUID"
+
+          # Verify signing identity is available
+          echo "🔐 Available signing identities:"
           security find-identity -v -p codesigning
+
+          echo "✅ iOS code signing setup complete!"
 
       # ---------------------
       # Build IPA (App Store)
       # ---------------------
       - name: Build iOS IPA
         run: |
+          echo "🏗️ Building iOS IPA..."
           flutter build ipa --release \
             --export-options-plist=ios/ExportOptions.plist
 
@@ -198,6 +274,7 @@ jobs:
           APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
           APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
         run: |
+          echo "🚀 Uploading to TestFlight..."
           mkdir -p ~/.appstoreconnect/private_keys
           echo "$APP_STORE_CONNECT_API_KEY_CONTENT" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
 
@@ -206,3 +283,5 @@ jobs:
             -t ios \
             --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
             --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+          
+          echo "✅ Upload complete!"
