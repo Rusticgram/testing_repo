@@ -35,3 +35,11 @@ android/*.jks
 android/*.keystore
 android/app/*.jks
 android/app/*.keystore
+
+# Ruby/Bundler
+ios/vendor/
+ios/.bundle/
+
+# CocoaPods
+ios/Pods/
+ios/Podfile.lock
