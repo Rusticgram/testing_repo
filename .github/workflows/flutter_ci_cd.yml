@@ -78,11 +78,17 @@ jobs:
   # --------------------------------------------------
   # iOS TestFlight Deployment Job
   # --------------------------------------------------
+  # --------------------------------------------------
+  # iOS TestFlight Deployment Job
+  # --------------------------------------------------
+  # --------------------------------------------------
+  # iOS TestFlight Deployment Job
+  # --------------------------------------------------
   build-and-upload-ios:
     name: Build & Upload (iOS)
     runs-on: macos-latest
-    # Only run iOS deployment on release or push to main to save macOS minutes
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    timeout-minutes: 60
     
     env:
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
@@ -111,8 +117,8 @@ jobs:
       - name: Cache Bundler gems
         uses: actions/cache@v4
         with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-${{ hashFiles('ios/Gemfile', 'ios/Gemfile.lock') }}
+          path: ios/vendor/bundle
+          key: ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-${{ hashFiles('ios/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-
             ${{ runner.os }}-gems-
@@ -121,22 +127,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gem
-            ~/Library/Caches/CocoaPods
             ios/Pods
+            ~/Library/Caches/CocoaPods
           key: ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-
 
-      - name: Install Bundler
+      - name: Install Bundler dependencies
         working-directory: ios
         run: |
           gem install bundler -v $BUNDLER_VERSION
-          bundle config set --local path '../vendor/bundle'
-          bundle _${BUNDLER_VERSION}_ install --jobs 4 --retry 3
-
-      - name: Install CocoaPods
-        run: sudo gem install cocoapods -v $COCOAPODS_VERSION -NV
+          bundle config set --local path 'vendor/bundle'
+          bundle install --jobs 4 --retry 3
 
       - name: Flutter Pub Get
         run: flutter pub get
@@ -145,6 +147,18 @@ jobs:
         working-directory: ios
         run: bundle exec pod install
 
-      - name: Build & Upload to TestFlight
+      - name: Setup certificates and provisioning profiles
         working-directory: ios
-        run: bundle exec fastlane beta
+        run: bundle exec fastlane run setup_signing
+
+      - name: Increment build number
+        working-directory: ios
+        run: bundle exec fastlane run increment_build_number xcodeproj:Runner.xcodeproj
+
+      - name: Build iOS Archive with Flutter
+        run: |
+          flutter build ios --release --no-codesign
+          
+      - name: Create IPA and Upload to TestFlight
+        working-directory: ios
+        run: bundle exec fastlane beta_upload_only
