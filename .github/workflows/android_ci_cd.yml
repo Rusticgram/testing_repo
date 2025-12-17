@@ -11,7 +11,10 @@ on:
     types: [ published ]
 
 jobs:
-  build-and-test:
+  # --------------------------------------------------
+  # Android Build & Test Job
+  # --------------------------------------------------
+  build-and-test-android:
     name: Build & Test (Android)
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -41,14 +44,10 @@ jobs:
       - name: Run tests (non-blocking)
         run: flutter test || true
 
-      # --------------------------------------------------
-      # Restore Upload Keystore (ONLY for release builds)
-      # --------------------------------------------------
       - name: Restore upload keystore
         if: github.event_name == 'release'
         run: |
           echo "${{ secrets.UPLOAD_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload-keystore.jks
-
           cat <<EOF > android/key.properties
           storeFile=upload-keystore.jks
           storePassword=${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
@@ -56,15 +55,9 @@ jobs:
           keyPassword=${{ secrets.UPLOAD_KEY_PASSWORD }}
           EOF
 
-      # -----------------------------
-      # Build APKs (CI artifacts)
-      # -----------------------------
       - name: Build Release APKs
         run: flutter build apk --release --split-per-abi
 
-      # -----------------------------------------
-      # Build SIGNED App Bundle for Play Store
-      # -----------------------------------------
       - name: Build App Bundle (signed with upload key)
         if: github.event_name == 'release'
         run: flutter build appbundle --release
@@ -81,3 +74,77 @@ jobs:
         with:
           name: app-release-aab
           path: build/app/outputs/bundle/release/app-release.aab
+
+  # --------------------------------------------------
+  # iOS TestFlight Deployment Job
+  # --------------------------------------------------
+  build-and-upload-ios:
+    name: Build & Upload (iOS)
+    runs-on: macos-latest
+    # Only run iOS deployment on release or push to main to save macOS minutes
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    
+    env:
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      IOS_DEV_PROFILE: ${{ secrets.IOS_DEV_PROFILE }}
+      IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
+      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+      FLUTTER_VERSION: '3.35.4'
+      COCOAPODS_VERSION: '1.16.2'
+      BUNDLER_VERSION: '2.7.2'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Bundler gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-${{ hashFiles('ios/Gemfile', 'ios/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-
+            ${{ runner.os }}-gems-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gem
+            ~/Library/Caches/CocoaPods
+            ios/Pods
+          key: ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-
+
+      - name: Install Bundler
+        working-directory: ios
+        run: |
+          gem install bundler -v $BUNDLER_VERSION
+          bundle config set --local path '../vendor/bundle'
+          bundle _${BUNDLER_VERSION}_ install --jobs 4 --retry 3
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods -v $COCOAPODS_VERSION -NV
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Pod install
+        working-directory: ios
+        run: bundle exec pod install
+
+      - name: Build & Upload to TestFlight
+        working-directory: ios
+        run: bundle exec fastlane beta
