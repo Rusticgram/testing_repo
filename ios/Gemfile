@@ -1,4 +1,4 @@
 source "https://rubygems.org"
 
-# Pin fastlane to a modern version so CI has the actions we call
-gem "fastlane", ">= 2.229.1"
+gem "cocoapods", "~> 1.16.2"
+gem "fastlane"
