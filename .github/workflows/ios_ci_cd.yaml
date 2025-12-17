@@ -1,0 +1,86 @@
+name: iOS TestFlight Deployment
+
+on:
+  push:
+    branches: [ main ]  # Runs on every push to main (release branch)
+
+jobs:
+  build-and-upload:
+    runs-on: macos-latest
+
+    env:
+      APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+      APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      IOS_DEV_PROFILE: ${{ secrets.IOS_DEV_PROFILE }}  # base64 of .mobileprovision
+      IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}      # base64 of .p12
+      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+      FLUTTER_VERSION: '3.35.4'
+      COCOAPODS_VERSION: '1.16.2'
+      BUNDLER_VERSION: '2.7.2'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2' # Adjust to your project's Ruby version
+          bundle-cache: false # We handle custom caching below
+
+      # --- Caching Strategy ---
+
+      - name: Cache Bundler gems
+        uses: actions/cache@v4
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-${{ hashFiles('ios/Gemfile', 'ios/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-
+            ${{ runner.os }}-gems-
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gem
+            ~/Library/Caches/CocoaPods
+            ios/Pods
+          key: ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-
+
+      # --- Dependencies ---
+
+      - name: Install Bundler and Gems
+        working-directory: ios
+        run: |
+          gem install bundler -v $BUNDLER_VERSION
+          bundle config set --local path '../vendor/bundle'
+          bundle _${BUNDLER_VERSION}_ install --jobs 4 --retry 3
+
+      - name: Install CocoaPods
+        run: sudo gem install cocoapods -v $COCOAPODS_VERSION -NV
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Pod Install
+        working-directory: ios
+        run: bundle exec pod install # Running via bundle exec ensures Fastlane/Pod compatibility
+
+      # --- Build & Deploy ---
+
+      - name: Build & Upload to TestFlight
+        working-directory: ios
+        run: bundle exec fastlane beta
