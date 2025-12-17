@@ -84,6 +84,9 @@ jobs:
   # --------------------------------------------------
   # iOS TestFlight Deployment Job
   # --------------------------------------------------
+  # --------------------------------------------------
+  # iOS TestFlight Deployment Job
+  # --------------------------------------------------
   build-and-upload-ios:
     name: Build & Upload (iOS)
     runs-on: macos-latest
@@ -147,18 +150,6 @@ jobs:
         working-directory: ios
         run: bundle exec pod install
 
-      - name: Setup certificates and provisioning profiles
+      - name: Build and Upload to TestFlight
         working-directory: ios
-        run: bundle exec fastlane run setup_signing
-
-      - name: Increment build number
-        working-directory: ios
-        run: bundle exec fastlane run increment_build_number xcodeproj:Runner.xcodeproj
-
-      - name: Build iOS Archive with Flutter
-        run: |
-          flutter build ios --release --no-codesign
-          
-      - name: Create IPA and Upload to TestFlight
-        working-directory: ios
-        run: bundle exec fastlane beta_upload_only
+        run: bundle exec fastlane beta
