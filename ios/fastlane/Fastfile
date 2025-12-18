@@ -1,24 +1,23 @@
 # ios/fastlane/Fastfile
+
 default_platform(:ios)
+
 require "base64"
 require "fileutils"
 
 platform :ios do
-  
-  desc "Setup code signing and return profile UUID"
+
+  desc "Setup code signing and return App Store profile UUID"
   lane :setup_signing do
-    #
-    # 1) Create and setup keychain FIRST
-    #
-    keychain_name = "app-signing"
+
+    # --------------------------------------------------
+    # 1) Create & configure temporary keychain
+    # --------------------------------------------------
+    keychain_name     = "app-signing"
     keychain_password = "temp_keychain_password"
-    
-    # Delete keychain if it exists
-    delete_keychain(
-      name: keychain_name
-    ) rescue nil
-    
-    # Create fresh keychain
+
+    delete_keychain(name: keychain_name) rescue nil
+
     create_keychain(
       name: keychain_name,
       password: keychain_password,
@@ -29,45 +28,22 @@ platform :ios do
       add_to_search_list: true
     )
 
-    # Set as default keychain
     sh("security default-keychain -s ~/Library/Keychains/#{keychain_name}-db")
     sh("security unlock-keychain -p #{keychain_password} ~/Library/Keychains/#{keychain_name}-db")
     sh("security set-keychain-settings -lut 3600 ~/Library/Keychains/#{keychain_name}-db")
 
-    #
-    # 2) Import distribution certificate with validation
-    #
+    # --------------------------------------------------
+    # 2) Import Apple Distribution certificate
+    # --------------------------------------------------
     cert_base64   = ENV["IOS_DIST_CERT"]
     cert_password = ENV["IOS_DIST_CERT_PASSWORD"]
-    UI.user_error!("IOS_DIST_CERT is missing") if cert_base64.to_s.empty?
-    UI.user_error!("IOS_DIST_CERT_PASSWORD is missing") if cert_password.to_s.empty?
-    
-    # Remove any whitespace/newlines from base64 string
-    cert_base64 = cert_base64.gsub(/\s+/, '')
-    
-    cert_path = File.expand_path("~/dist_cert.p12")
-    
-    begin
-      decoded_cert = Base64.decode64(cert_base64)
-      UI.message("Certificate size after decode: #{decoded_cert.bytesize} bytes")
-      
-      File.open(cert_path, "wb") do |f|
-        f.write(decoded_cert)
-      end
-      
-      UI.message("Certificate written to: #{cert_path}")
-      
-      # Verify the file exists and has content
-      if File.exist?(cert_path) && File.size(cert_path) > 0
-        UI.success("Certificate file created successfully (#{File.size(cert_path)} bytes)")
-      else
-        UI.user_error!("Certificate file is empty or doesn't exist")
-      end
-    rescue => e
-      UI.user_error!("Failed to decode certificate: #{e.message}")
-    end
 
-    # Import certificate
+    UI.user_error!("IOS_DIST_CERT missing") if cert_base64.to_s.empty?
+    UI.user_error!("IOS_DIST_CERT_PASSWORD missing") if cert_password.to_s.empty?
+
+    cert_path = File.expand_path("~/dist_cert.p12")
+    File.write(cert_path, Base64.decode64(cert_base64.gsub(/\s+/, "")))
+
     import_certificate(
       certificate_path: cert_path,
       certificate_password: cert_password,
@@ -75,44 +51,35 @@ platform :ios do
       keychain_password: keychain_password,
       log_output: true
     )
-    
-    # Allow codesign to access the keychain
+
     sh("security set-key-partition-list -S apple-tool:,apple: -k #{keychain_password} ~/Library/Keychains/#{keychain_name}-db")
 
-    #
-    # 3) Install provisioning profile
-    #
-    profile_base64 = ENV["IOS_DEV_PROFILE"]
-    UI.user_error!("IOS_DEV_PROFILE is missing") if profile_base64.to_s.empty?
-    
-    # Remove any whitespace/newlines from base64 string
-    profile_base64 = profile_base64.gsub(/\s+/, '')
-    
+    # VERIFY CERTIFICATE (CRITICAL)
+    sh("security find-identity -v -p codesigning")
+
+    # --------------------------------------------------
+    # 3) Install App Store provisioning profile
+    # --------------------------------------------------
+    profile_base64 = ENV["IOS_DIST_PROFILE"]
+    UI.user_error!("IOS_DIST_PROFILE missing") if profile_base64.to_s.empty?
+
     profiles_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
     FileUtils.mkdir_p(profiles_dir)
-    
-    # Decode profile
-    profile_content = Base64.decode64(profile_base64)
-    
-    # Extract UUID from profile
-    uuid_match = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)
-    if uuid_match.nil?
-      UI.user_error!("Could not extract UUID from provisioning profile")
-    end
-    
-    uuid = uuid_match[1]
-    UI.message("Installing provisioning profile with UUID: #{uuid}")
-    
-    profile_path = File.join(profiles_dir, "#{uuid}.mobileprovision")
-    File.open(profile_path, "wb") do |f|
-      f.write(profile_content)
-    end
-    
-    UI.success("Provisioning profile installed at: #{profile_path}")
 
-    #
-    # 4) Setup App Store Connect API key
-    #
+    profile_content = Base64.decode64(profile_base64.gsub(/\s+/, ""))
+
+    uuid_match = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)
+    UI.user_error!("Unable to extract provisioning profile UUID") if uuid_match.nil?
+
+    uuid = uuid_match[1]
+    profile_path = File.join(profiles_dir, "#{uuid}.mobileprovision")
+    File.write(profile_path, profile_content)
+
+    UI.success("Provisioning profile installed: #{uuid}")
+
+    # --------------------------------------------------
+    # 4) App Store Connect API key
+    # --------------------------------------------------
     app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
@@ -120,52 +87,54 @@ platform :ios do
       is_key_content_base64: true,
       in_house: false
     )
-    
-    # Store UUID in shared values so beta lane can access it
+
     Actions.lane_context[:PROFILE_UUID] = uuid
   end
 
-  desc "Full beta lane - build and upload"
+  desc "Build IPA and upload to TestFlight"
   lane :beta do
-    setup_signing
-    
-    # Get UUID from lane context
-    uuid = Actions.lane_context[:PROFILE_UUID]
-    
-    increment_build_number(
-      xcodeproj: "Runner.xcodeproj"
-    )
 
-    # Build with detailed logging
+    setup_signing
+
+    uuid = Actions.lane_context[:PROFILE_UUID]
+
+    increment_build_number(xcodeproj: "Runner.xcodeproj")
+
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
+      configuration: "Release",
       export_method: "app-store",
       clean: true,
       output_directory: "./build",
       output_name: "Runner.ipa",
       buildlog_path: "./build/logs",
+
+      xcargs: [
+        "-allowProvisioningUpdates",
+        "CODE_SIGN_STYLE=Manual",
+        "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}",
+        "CODE_SIGN_IDENTITY=Apple Distribution",
+        "PROVISIONING_PROFILE_SPECIFIER=#{uuid}",
+        "COMPILER_INDEX_STORE_ENABLE=NO"
+      ].join(" "),
+
       export_options: {
         method: "app-store",
-        uploadBitcode: false,
-        uploadSymbols: true,
-        compileBitcode: false,
         signingStyle: "manual",
         teamID: ENV["APPLE_TEAM_ID"],
-        signingCertificate: "Apple Distribution",
         provisioningProfiles: {
           ENV["APP_IDENTIFIER"] => uuid
         }
       },
-      xcargs: "-allowProvisioningUpdates COMPILER_INDEX_STORE_ENABLE=NO",
       verbose: true
     )
 
     upload_to_testflight(
       app_identifier: ENV["APP_IDENTIFIER"],
+      ipa: "./build/Runner.ipa",
       skip_waiting_for_build_processing: true,
-      skip_submission: true,
-      ipa: "./build/Runner.ipa"
+      skip_submission: true
     )
   end
 end
