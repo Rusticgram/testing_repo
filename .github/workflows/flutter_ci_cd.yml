@@ -132,9 +132,9 @@ jobs:
           path: |
             ios/Pods
             ~/Library/Caches/CocoaPods
-          key: ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-${{ hashFiles('ios/Podfile.lock') }}
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cocoapods-${{ env.COCOAPODS_VERSION }}-
+            ${{ runner.os }}-pods-
 
       - name: Install Bundler dependencies
         working-directory: ios
@@ -146,9 +146,23 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Pod install
+      - name: Pod install with retry
         working-directory: ios
-        run: bundle exec pod install
+        run: |
+          for i in {1..3}; do
+            echo "Pod install attempt $i of 3"
+            if bundle exec pod install; then
+              echo "✓ Pod install succeeded"
+              exit 0
+            else
+              if [ $i -eq 3 ]; then
+                echo "✗ Pod install failed after 3 attempts"
+                exit 1
+              fi
+              echo "Retrying in 30 seconds..."
+              sleep 30
+            fi
+          done
 
       - name: Build and Upload to TestFlight
         working-directory: ios
@@ -162,3 +176,4 @@ jobs:
           path: |
             ios/build/logs/
             ~/Library/Logs/gym/
+          retention-days: 5
