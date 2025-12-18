@@ -1194,7 +1194,7 @@ PODS:
   - BoringSSL-GRPC/Implementation (0.0.37):
     - BoringSSL-GRPC/Interface (= 0.0.37)
   - BoringSSL-GRPC/Interface (0.0.37)
-  - BranchSDK (3.13.0)
+  - BranchSDK (3.13.3)
   - cloud_firestore (5.6.12):
     - Firebase/Firestore (= 11.15.0)
     - firebase_core
@@ -1541,7 +1541,9 @@ PODS:
   - PromisesObjC (2.4.0)
   - PromisesSwift (2.4.0):
     - PromisesObjC (= 2.4.0)
-  - razorpay-pod (1.4.3)
+  - razorpay-core-pod (1.0.3)
+  - razorpay-pod (1.5.2):
+    - razorpay-core-pod (= 1.0.3)
   - razorpay_flutter (1.1.10):
     - Flutter
     - razorpay-pod
@@ -1623,6 +1625,7 @@ SPEC REPOS:
     - nanopb
     - PromisesObjC
     - PromisesSwift
+    - razorpay-core-pod
     - razorpay-pod
     - RecaptchaInterop
     - ScreenProtectorKit
@@ -1682,7 +1685,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   abseil: a05cc83bf02079535e17169a73c5be5ba47f714b
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
-  BranchSDK: e8c785c08ad10ec3180623db663c6c0013bc1b04
+  BranchSDK: 19a6e97115350db916a57823c7f6ed96d1e70e46
   cloud_firestore: fdcc87898326e396d6ef6df543acf9b5c2034b95
   connectivity_plus: cb623214f4e1f6ef8fe7403d580fdad517d2f7dd
   device_info_plus: 21fcca2080fbcd348be798aa36c3e5ed849eefbe
@@ -1732,7 +1735,8 @@ SPEC CHECKSUMS:
   permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
-  razorpay-pod: af9d52abe715ed5cc3eed9fdf6fd74340443d0b9
+  razorpay-core-pod: ef0309dbf8e3e5a1330f6cad89dcf9226d8ef758
+  razorpay-pod: a9cb6e158aee8754053b147008eff6b4897789c8
   razorpay_flutter: 0e98e4fcaae27ad50e011d85f66d85e0a008754a
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
   ScreenProtectorKit: 83a6281b02c7a5902ee6eac4f5045f674e902ae4
@@ -1742,6 +1746,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
   video_player_avfoundation: dd410b52df6d2466a42d28550e33e4146928280a
 
-PODFILE CHECKSUM: 1e82406d89853045b556ccd1582e78605c069865
+PODFILE CHECKSUM: fddd26f72f7d64ff1bfc846ffce5f878c5427111
 
 COCOAPODS: 1.16.2
