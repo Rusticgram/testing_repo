@@ -100,6 +100,7 @@ jobs:
       APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       IOS_DEV_PROFILE: ${{ secrets.IOS_DEV_PROFILE }}
+      IOS_DIST_PROFILE: ${{ secrets.IOS_DIST_PROFILE }}
       IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
       IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
       FLUTTER_VERSION: '3.35.4'
