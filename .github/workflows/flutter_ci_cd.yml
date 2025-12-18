@@ -153,7 +153,6 @@ jobs:
       - name: Build and Upload to TestFlight
         working-directory: ios
         run: bundle exec fastlane beta
-        continue-on-error: true
 
       - name: Upload build logs on failure
         if: failure()
