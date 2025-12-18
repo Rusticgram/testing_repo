@@ -160,7 +160,7 @@ jobs:
       # Build and upload via fastlane
       - name: Build & Upload to TestFlight
         working-directory: ios
-        run: bundle exec fastlane ios beta
+        run: bundle exec fastlane ios beta --verbose
 
       # Helpful on failure
       - name: Upload iOS build logs on failure
