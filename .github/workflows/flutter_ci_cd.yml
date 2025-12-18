@@ -88,28 +88,24 @@ jobs:
   # iOS TestFlight Deployment Job
   # --------------------------------------------------
   build-and-upload-ios:
-    name: Build & Upload (iOS)
+    name: Build & Upload (iOS to TestFlight)
     runs-on: macos-14
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     timeout-minutes: 70
-
     env:
       APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
       IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
       IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
       IOS_DIST_PROFILE: ${{ secrets.IOS_DIST_PROFILE }}
-
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
       APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
       APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-    # 🔐 Fix GitHub network instability (CRITICAL)
+      # Optional but helpful for flaky git checkouts
       - name: Harden git network
         run: |
           git config --global http.version HTTP/1.1
@@ -127,14 +123,15 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # Ruby + Bundler
-      - name: Setup Ruby
+      # Critical: Point Ruby setup to the ios/ directory where Gemfile lives
+      - name: Setup Ruby & Bundler
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
+          working-directory: ios  # This ensures bundle install runs in ios/
 
-      # Cache CocoaPods (DO NOT DELETE Podfile.lock)
+      # Cache Pods for faster runs
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
@@ -145,21 +142,28 @@ jobs:
           restore-keys: |
             pods-${{ runner.os }}-
 
-      # Retry pod install (handles Firebase GitHub outages)
+      # Pod install with retry (Firebase specs can be flaky)
       - name: Pod install with retry
         working-directory: ios
         run: |
           for i in 1 2 3; do
-            echo "Pod install attempt $i"
-            bundle exec pod install && break
+            echo "Attempt $i: bundle exec pod install"
+            if bundle exec pod install; then
+              exit 0
+            fi
+            echo "Failed, retrying in 30s..."
             sleep 30
           done
+          echo "Pod install failed after 3 attempts"
+          exit 1
 
+      # Build and upload via fastlane
       - name: Build & Upload to TestFlight
         working-directory: ios
         run: bundle exec fastlane ios beta
 
-      - name: Upload iOS logs on failure
+      # Helpful on failure
+      - name: Upload iOS build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -167,3 +171,4 @@ jobs:
           path: |
             ios/build/logs/
             ~/Library/Logs/gym/
+            ~/Library/Logs/scan/
