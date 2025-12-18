@@ -109,14 +109,14 @@ platform :ios do
       output_directory: "./build",
       output_name: "Runner.ipa",
       buildlog_path: "./build/logs",
-
-      xcargs: [
-        "-allowProvisioningUpdates",
-        "CODE_SIGN_STYLE=Manual",
-        "DEVELOPMENT_TEAM=#{ENV['APPLE_TEAM_ID']}",
-        "PROVISIONING_PROFILE_SPECIFIER=#{uuid}",
-        "COMPILER_INDEX_STORE_ENABLE=NO"
-      ].join(" "),
+      xcargs: {
+        CODE_SIGN_STYLE: "Manual",
+        DEVELOPMENT_TEAM: ENV["APPLE_TEAM_ID"],
+        PROVISIONING_PROFILE_SPECIFIER: uuid,
+        COMPILER_INDEX_STORE_ENABLE: "NO",
+        # This is the key fix:
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+      },
       export_options: {
         method: "app-store",
         signingStyle: "manual",
