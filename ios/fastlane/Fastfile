@@ -35,20 +35,46 @@ platform :ios do
     sh("security set-keychain-settings -lut 3600 ~/Library/Keychains/#{keychain_name}-db")
 
     #
-    # 2) Import distribution certificate
+    # 2) Import distribution certificate with validation
     #
     cert_base64   = ENV["IOS_DIST_CERT"]
     cert_password = ENV["IOS_DIST_CERT_PASSWORD"]
     UI.user_error!("IOS_DIST_CERT is missing") if cert_base64.to_s.empty?
     UI.user_error!("IOS_DIST_CERT_PASSWORD is missing") if cert_password.to_s.empty?
     
+    # Remove any whitespace/newlines from base64 string
+    cert_base64 = cert_base64.gsub(/\s+/, '')
+    
     cert_path = File.expand_path("~/dist_cert.p12")
-    File.open(cert_path, "wb") do |f|
-      f.write(Base64.decode64(cert_base64))
+    
+    begin
+      decoded_cert = Base64.decode64(cert_base64)
+      UI.message("Certificate size after decode: #{decoded_cert.bytesize} bytes")
+      
+      File.open(cert_path, "wb") do |f|
+        f.write(decoded_cert)
+      end
+      
+      UI.message("Certificate written to: #{cert_path}")
+      
+      # Verify the file exists and has content
+      if File.exist?(cert_path) && File.size(cert_path) > 0
+        UI.success("Certificate file created successfully (#{File.size(cert_path)} bytes)")
+      else
+        UI.user_error!("Certificate file is empty or doesn't exist")
+      end
+    rescue => e
+      UI.user_error!("Failed to decode certificate: #{e.message}")
     end
 
-    # Import certificate using security command directly for better error handling
-    sh("security import #{cert_path} -k ~/Library/Keychains/#{keychain_name}-db -P #{cert_password} -T /usr/bin/codesign -T /usr/bin/security")
+    # Import certificate using import_certificate action (more reliable than sh command)
+    import_certificate(
+      certificate_path: cert_path,
+      certificate_password: cert_password,
+      keychain_name: keychain_name,
+      keychain_password: keychain_password,
+      log_output: true
+    )
     
     # Allow codesign to access the keychain
     sh("security set-key-partition-list -S apple-tool:,apple: -k #{keychain_password} ~/Library/Keychains/#{keychain_name}-db")
@@ -59,20 +85,30 @@ platform :ios do
     profile_base64 = ENV["IOS_DEV_PROFILE"]
     UI.user_error!("IOS_DEV_PROFILE is missing") if profile_base64.to_s.empty?
     
+    # Remove any whitespace/newlines from base64 string
+    profile_base64 = profile_base64.gsub(/\s+/, '')
+    
     profiles_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
     FileUtils.mkdir_p(profiles_dir)
     
-    # Decode to get profile UUID
+    # Decode profile
     profile_content = Base64.decode64(profile_base64)
     
-    # Extract UUID from profile using regex
-    uuid = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)[1]
+    # Extract UUID from profile
+    uuid_match = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)
+    if uuid_match.nil?
+      UI.user_error!("Could not extract UUID from provisioning profile")
+    end
+    
+    uuid = uuid_match[1]
     UI.message("Installing provisioning profile with UUID: #{uuid}")
     
     profile_path = File.join(profiles_dir, "#{uuid}.mobileprovision")
     File.open(profile_path, "wb") do |f|
       f.write(profile_content)
     end
+    
+    UI.success("Provisioning profile installed at: #{profile_path}")
 
     #
     # 4) Setup App Store Connect API key
@@ -95,7 +131,7 @@ platform :ios do
     )
 
     # Get the profile UUID for export options
-    profile_base64 = ENV["IOS_DEV_PROFILE"]
+    profile_base64 = ENV["IOS_DEV_PROFILE"].gsub(/\s+/, '')
     profile_content = Base64.decode64(profile_base64)
     uuid = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)[1]
 
