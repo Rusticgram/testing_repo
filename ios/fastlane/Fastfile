@@ -5,7 +5,7 @@ require "fileutils"
 
 platform :ios do
   
-  desc "Setup code signing"
+  desc "Setup code signing and return profile UUID"
   lane :setup_signing do
     #
     # 1) Create and setup keychain FIRST
@@ -121,12 +121,16 @@ platform :ios do
       in_house: false
     )
     
-    return uuid
+    # Store UUID in shared values so beta lane can access it
+    Actions.lane_context[:PROFILE_UUID] = uuid
   end
 
   desc "Full beta lane - build and upload"
   lane :beta do
-    uuid = setup_signing
+    setup_signing
+    
+    # Get UUID from lane context
+    uuid = Actions.lane_context[:PROFILE_UUID]
     
     increment_build_number(
       xcodeproj: "Runner.xcodeproj"
