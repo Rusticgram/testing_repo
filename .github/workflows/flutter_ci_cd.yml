@@ -89,83 +89,77 @@ jobs:
   # --------------------------------------------------
   build-and-upload-ios:
     name: Build & Upload (iOS)
-    runs-on: macos-latest
+    runs-on: macos-14
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
-    timeout-minutes: 60
+    timeout-minutes: 70
 
     env:
-      # App info
       APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
-      # Signing
       IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
       IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
       IOS_DIST_PROFILE: ${{ secrets.IOS_DIST_PROFILE }}
 
-      # App Store Connect
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
       APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
       APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-
-      # Tooling
-      FLUTTER_VERSION: '3.35.4'
-      BUNDLER_VERSION: '2.7.2'
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+    # 🔐 Fix GitHub network instability (CRITICAL)
+      - name: Harden git network
+        run: |
+          git config --global http.version HTTP/1.1
+          git config --global http.postBuffer 524288000
+          git config --global http.lowSpeedLimit 0
+          git config --global http.lowSpeedTime 999999
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: '3.35.4'
           channel: stable
           cache: true
 
-      # -------------------------------
-      # Ruby / Bundler
-      # -------------------------------
-      - name: Install Bundler
-        run: |
-          gem install bundler -v $BUNDLER_VERSION
-
-      - name: Install Gems
-        working-directory: ios
-        run: |
-          bundle config set --local path vendor/bundle
-          bundle install --jobs 4 --retry 3
-
-      # -------------------------------
-      # Flutter deps
-      # -------------------------------
       - name: Flutter pub get
         run: flutter pub get
 
-      # -------------------------------
-      # 🔥 CRITICAL FIX: FORCE CLEAN PODS
-      # -------------------------------
-      - name: Force clean CocoaPods
+      # Ruby + Bundler
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      # Cache CocoaPods (DO NOT DELETE Podfile.lock)
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cocoapods
+            ios/Pods
+          key: pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}
+          restore-keys: |
+            pods-${{ runner.os }}-
+
+      # Retry pod install (handles Firebase GitHub outages)
+      - name: Pod install with retry
         working-directory: ios
         run: |
-          rm -rf Pods Podfile.lock
-          pod cache clean --all
+          for i in 1 2 3; do
+            echo "Pod install attempt $i"
+            bundle exec pod install && break
+            sleep 30
+          done
 
-      - name: Pod install
-        working-directory: ios
-        run: bundle exec pod install
-
-      # -------------------------------
-      # Fastlane build + upload
-      # -------------------------------
       - name: Build & Upload to TestFlight
         working-directory: ios
         run: bundle exec fastlane ios beta
 
-      # -------------------------------
-      # Upload logs on failure
-      # -------------------------------
-      - name: Upload build logs on failure
+      - name: Upload iOS logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
