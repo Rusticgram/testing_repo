@@ -92,19 +92,24 @@ jobs:
     runs-on: macos-latest
     if: github.event_name == 'release' || github.ref == 'refs/heads/main'
     timeout-minutes: 60
-    
+
     env:
+      # App info
+      APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      # Signing
+      IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
+      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+      IOS_DIST_PROFILE: ${{ secrets.IOS_DIST_PROFILE }}
+
+      # App Store Connect
       APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
       APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
       APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
-      APP_IDENTIFIER: ${{ secrets.APP_IDENTIFIER }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      IOS_DEV_PROFILE: ${{ secrets.IOS_DEV_PROFILE }}
-      IOS_DIST_PROFILE: ${{ secrets.IOS_DIST_PROFILE }}
-      IOS_DIST_CERT: ${{ secrets.IOS_DIST_CERT }}
-      IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      # Tooling
       FLUTTER_VERSION: '3.35.4'
-      COCOAPODS_VERSION: '1.16.2'
       BUNDLER_VERSION: '2.7.2'
 
     steps:
@@ -115,60 +120,51 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      - name: Cache Bundler gems
-        uses: actions/cache@v4
-        with:
-          path: ios/vendor/bundle
-          key: ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-${{ hashFiles('ios/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-gems-${{ env.BUNDLER_VERSION }}-
-            ${{ runner.os }}-gems-
-
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: |
-            ios/Pods
-            ~/Library/Caches/CocoaPods
-          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pods-
-
-      - name: Install Bundler dependencies
-        working-directory: ios
+      # -------------------------------
+      # Ruby / Bundler
+      # -------------------------------
+      - name: Install Bundler
         run: |
           gem install bundler -v $BUNDLER_VERSION
-          bundle config set --local path 'vendor/bundle'
-          bundle install --jobs 4 --retry 3
 
-      - name: Flutter Pub Get
-        run: flutter pub get
-
-      - name: Pod install with retry
+      - name: Install Gems
         working-directory: ios
         run: |
-          for i in {1..3}; do
-            echo "Pod install attempt $i of 3"
-            if bundle exec pod install; then
-              echo "✓ Pod install succeeded"
-              exit 0
-            else
-              if [ $i -eq 3 ]; then
-                echo "✗ Pod install failed after 3 attempts"
-                exit 1
-              fi
-              echo "Retrying in 30 seconds..."
-              sleep 30
-            fi
-          done
+          bundle config set --local path vendor/bundle
+          bundle install --jobs 4 --retry 3
 
-      - name: Build and Upload to TestFlight
+      # -------------------------------
+      # Flutter deps
+      # -------------------------------
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # -------------------------------
+      # 🔥 CRITICAL FIX: FORCE CLEAN PODS
+      # -------------------------------
+      - name: Force clean CocoaPods
         working-directory: ios
-        run: bundle exec fastlane beta
+        run: |
+          rm -rf Pods Podfile.lock
+          pod cache clean --all
 
+      - name: Pod install
+        working-directory: ios
+        run: bundle exec pod install
+
+      # -------------------------------
+      # Fastlane build + upload
+      # -------------------------------
+      - name: Build & Upload to TestFlight
+        working-directory: ios
+        run: bundle exec fastlane ios beta
+
+      # -------------------------------
+      # Upload logs on failure
+      # -------------------------------
       - name: Upload build logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -177,4 +173,3 @@ jobs:
           path: |
             ios/build/logs/
             ~/Library/Logs/gym/
-          retention-days: 5
