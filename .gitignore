@@ -37,8 +37,8 @@ android/app/*.jks
 android/app/*.keystore
 
 # Ruby/Bundler
-ios/vendor/
-ios/.bundle/
+# ios/vendor/
+# ios/.bundle/
 
 # CocoaPods
 ios/Pods/
