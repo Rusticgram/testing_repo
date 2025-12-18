@@ -67,7 +67,7 @@ platform :ios do
       UI.user_error!("Failed to decode certificate: #{e.message}")
     end
 
-    # Import certificate using import_certificate action (more reliable than sh command)
+    # Import certificate
     import_certificate(
       certificate_path: cert_path,
       certificate_password: cert_password,
@@ -120,26 +120,27 @@ platform :ios do
       is_key_content_base64: true,
       in_house: false
     )
+    
+    return uuid
   end
 
   desc "Full beta lane - build and upload"
   lane :beta do
-    setup_signing
+    uuid = setup_signing
     
     increment_build_number(
       xcodeproj: "Runner.xcodeproj"
     )
 
-    # Get the profile UUID for export options
-    profile_base64 = ENV["IOS_DEV_PROFILE"].gsub(/\s+/, '')
-    profile_content = Base64.decode64(profile_base64)
-    uuid = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)[1]
-
+    # Build with detailed logging
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
       export_method: "app-store",
       clean: true,
+      output_directory: "./build",
+      output_name: "Runner.ipa",
+      buildlog_path: "./build/logs",
       export_options: {
         method: "app-store",
         uploadBitcode: false,
@@ -147,17 +148,20 @@ platform :ios do
         compileBitcode: false,
         signingStyle: "manual",
         teamID: ENV["APPLE_TEAM_ID"],
+        signingCertificate: "Apple Distribution",
         provisioningProfiles: {
           ENV["APP_IDENTIFIER"] => uuid
         }
       },
-      xcargs: "-allowProvisioningUpdates COMPILER_INDEX_STORE_ENABLE=NO"
+      xcargs: "-allowProvisioningUpdates COMPILER_INDEX_STORE_ENABLE=NO",
+      verbose: true
     )
 
     upload_to_testflight(
       app_identifier: ENV["APP_IDENTIFIER"],
       skip_waiting_for_build_processing: true,
-      skip_submission: true
+      skip_submission: true,
+      ipa: "./build/Runner.ipa"
     )
   end
 end
