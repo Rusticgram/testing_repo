@@ -2,84 +2,12 @@
 
 default_platform(:ios)
 
-require "base64"
-require "fileutils"
-
 platform :ios do
 
-  desc "Setup code signing and return App Store profile UUID"
-  lane :setup_signing do
+  desc "Build IPA and upload to TestFlight (Automatic Signing)"
+  lane :beta do
 
-    # --------------------------------------------------
-    # 1) Create & configure temporary keychain
-    # --------------------------------------------------
-    keychain_name = "app-signing"
-    keychain_password = "temp_keychain_password"
-
-    delete_keychain(name: keychain_name) rescue nil
-
-    create_keychain(
-      name: keychain_name,
-      password: keychain_password,
-      default_keychain: false,
-      unlock: true,
-      timeout: 3600,
-      lock_when_sleeps: false,
-      add_to_search_list: true
-    )
-
-    sh("security default-keychain -s ~/Library/Keychains/#{keychain_name}-db")
-    sh("security unlock-keychain -p #{keychain_password} ~/Library/Keychains/#{keychain_name}-db")
-    sh("security set-keychain-settings -lut 3600 ~/Library/Keychains/#{keychain_name}-db")
-
-    # --------------------------------------------------
-    # 2) Import Apple Distribution certificate
-    # --------------------------------------------------
-    cert_base64 = ENV["IOS_DIST_CERT"]
-    cert_password = ENV["IOS_DIST_CERT_PASSWORD"]
-
-    UI.user_error!("IOS_DIST_CERT missing") if cert_base64.to_s.empty?
-    UI.user_error!("IOS_DIST_CERT_PASSWORD missing") if cert_password.to_s.empty?
-
-    cert_path = File.expand_path("~/dist_cert.p12")
-    File.write(cert_path, Base64.decode64(cert_base64.gsub(/\s+/, "")))
-
-    import_certificate(
-      certificate_path: cert_path,
-      certificate_password: cert_password,
-      keychain_name: keychain_name,
-      keychain_password: keychain_password,
-      log_output: true
-    )
-
-    sh("security set-key-partition-list -S apple-tool:,apple: -k #{keychain_password} ~/Library/Keychains/#{keychain_name}-db")
-
-    # VERIFY CERTIFICATE (CRITICAL)
-    sh("security find-identity -v -p codesigning")
-
-    # --------------------------------------------------
-    # 3) Install App Store provisioning profile
-    # --------------------------------------------------
-    profile_base64 = ENV["IOS_DIST_PROFILE"]
-    UI.user_error!("IOS_DIST_PROFILE missing") if profile_base64.to_s.empty?
-
-    profiles_dir = File.expand_path("~/Library/MobileDevice/Provisioning Profiles")
-    FileUtils.mkdir_p(profiles_dir)
-
-    profile_content = Base64.decode64(profile_base64.gsub(/\s+/, ""))
-
-    uuid_match = profile_content.match(/<key>UUID<\/key>\s*<string>(.*?)<\/string>/m)
-    UI.user_error!("Unable to extract provisioning profile UUID") if uuid_match.nil?
-
-    uuid = uuid_match[1]
-    profile_path = File.join(profiles_dir, "#{uuid}.mobileprovision")
-    File.write(profile_path, profile_content)
-
-    UI.success("Provisioning profile installed: #{uuid}")
-
-    # --------------------------------------------------
-    # 4) App Store Connect API key
-    # --------------------------------------------------
+    # App Store Connect API key setup (required for automatic profile download)
     app_store_connect_api_key(
       key_id: ENV["APP_STORE_CONNECT_API_KEY_ID"],
       issuer_id: ENV["APP_STORE_CONNECT_API_ISSUER_ID"],
@@ -88,17 +16,10 @@ platform :ios do
       in_house: false
     )
 
-    Actions.lane_context[:PROFILE_UUID] = uuid
-  end
-
-  desc "Build IPA and upload to TestFlight"
-  lane :beta do
-    setup_signing
-
-    # Increment build number (uses agvtool)
+    # Increment build number using agvtool
     increment_build_number(xcodeproj: "Runner.xcodeproj")
 
-    # Build the app - IMPORTANT: No manual provisioning profile specification
+    # Build with FULLY AUTOMATIC signing - Xcode fetches perfect profile with ALL entitlements (Push Notifications, etc.)
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
@@ -109,22 +30,21 @@ platform :ios do
       output_name: "Runner.ipa",
       buildlog_path: "./build/logs",
       xcargs: {
-        CODE_SIGN_STYLE: "Manual",
-        DEVELOPMENT_TEAM: ENV["APPLE_TEAM_ID"],
-        COMPILER_INDEX_STORE_ENABLE: "NO",
-        # Optional but recommended: force the correct signing identity
-        CODE_SIGN_IDENTITY: "Apple Distribution"
-        # REMOVED: PROVISIONING_PROFILE_SPECIFIER
+        "DEVELOPMENT_TEAM" => ENV["APPLE_TEAM_ID"],
+        "COMPILER_INDEX_STORE_ENABLE" => "NO",
+        # CRITICAL: Allows Xcode to automatically download/update provisioning profiles from Apple
+        "ALLOW_PROVISIONING_UPDATES" => "YES",
+        # Ensures automatic code signing (no manual cert/profile needed)
+        "CODE_SIGN_STYLE" => "Automatic"
       },
       export_options: {
-        method: "app-store",
-        signingStyle: "manual",
-        teamID: ENV["APPLE_TEAM_ID"]
-        # REMOVED: provisioningProfiles hash entirely
+        method: "app-store"
+        # Automatic signing handles everything else
       },
       verbose: true
     )
 
+    # Upload to TestFlight (skip processing wait for CI)
     upload_to_testflight(
       app_identifier: ENV["APP_IDENTIFIER"],
       ipa: "./build/Runner.ipa",
