@@ -13,7 +13,7 @@ platform :ios do
     # --------------------------------------------------
     # 1) Create & configure temporary keychain
     # --------------------------------------------------
-    keychain_name     = "app-signing"
+    keychain_name = "app-signing"
     keychain_password = "temp_keychain_password"
 
     delete_keychain(name: keychain_name) rescue nil
@@ -35,7 +35,7 @@ platform :ios do
     # --------------------------------------------------
     # 2) Import Apple Distribution certificate
     # --------------------------------------------------
-    cert_base64   = ENV["IOS_DIST_CERT"]
+    cert_base64 = ENV["IOS_DIST_CERT"]
     cert_password = ENV["IOS_DIST_CERT_PASSWORD"]
 
     UI.user_error!("IOS_DIST_CERT missing") if cert_base64.to_s.empty?
@@ -93,13 +93,12 @@ platform :ios do
 
   desc "Build IPA and upload to TestFlight"
   lane :beta do
-
     setup_signing
 
-    uuid = Actions.lane_context[:PROFILE_UUID]
-
+    # Increment build number (uses agvtool)
     increment_build_number(xcodeproj: "Runner.xcodeproj")
 
+    # Build the app - IMPORTANT: No manual provisioning profile specification
     build_app(
       workspace: "Runner.xcworkspace",
       scheme: "Runner",
@@ -112,18 +111,16 @@ platform :ios do
       xcargs: {
         CODE_SIGN_STYLE: "Manual",
         DEVELOPMENT_TEAM: ENV["APPLE_TEAM_ID"],
-        PROVISIONING_PROFILE_SPECIFIER: uuid,
         COMPILER_INDEX_STORE_ENABLE: "NO",
-        # This is the key fix:
+        # Optional but recommended: force the correct signing identity
         CODE_SIGN_IDENTITY: "Apple Distribution"
+        # REMOVED: PROVISIONING_PROFILE_SPECIFIER
       },
       export_options: {
         method: "app-store",
         signingStyle: "manual",
-        teamID: ENV["APPLE_TEAM_ID"],
-        provisioningProfiles: {
-          ENV["APP_IDENTIFIER"] => uuid
-        }
+        teamID: ENV["APPLE_TEAM_ID"]
+        # REMOVED: provisioningProfiles hash entirely
       },
       verbose: true
     )
